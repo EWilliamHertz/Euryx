@@ -413,7 +413,6 @@ export default function PlayRoomPage() {
           <BoardHalf
             side={opp}
             isOpponent
-            onAttachEnergy={() => {}}
           />
         </div>
 
