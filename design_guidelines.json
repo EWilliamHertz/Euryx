@@ -1,0 +1,136 @@
+{
+  "theme": "Dark",
+  "archetype": "7 (Electric & Neon)",
+  "typography": {
+    "fonts": {
+      "heading": "Unbounded",
+      "body": "IBM Plex Mono",
+      "accent": "JetBrains Mono"
+    },
+    "hierarchy": {
+      "h1": "text-5xl sm:text-6xl tracking-tighter font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]",
+      "h2": "text-3xl sm:text-4xl tracking-tight font-bold text-slate-100",
+      "h3": "text-xl sm:text-2xl tracking-tight font-semibold text-slate-200",
+      "body": "text-base leading-relaxed text-slate-400",
+      "labels": "text-xs tracking-[0.2em] uppercase font-bold text-slate-500"
+    }
+  },
+  "colors": {
+    "background": {
+      "primary": "#020617",
+      "secondary": "#000000",
+      "surface": "#0f172a"
+    },
+    "neon": {
+      "cyan": {
+        "hex": "#00f0ff",
+        "hsl": "184, 100%, 50%"
+      },
+      "fuchsia": {
+        "hex": "#ff00ff",
+        "hsl": "300, 100%, 50%"
+      }
+    },
+    "tailwind_config_tokens": {
+      "colors": {
+        "euryx-cyan": "#00f0ff",
+        "euryx-fuchsia": "#ff00ff",
+        "euryx-bg-primary": "#020617",
+        "euryx-bg-secondary": "#000000",
+        "euryx-surface": "#0f172a"
+      }
+    }
+  },
+  "effects": {
+    "glassmorphism": {
+      "recipe": "backdrop-blur-xl bg-slate-950/40 border border-white/10",
+      "haloNav": "backdrop-blur-2xl bg-black/60 border border-euryx-cyan/30 shadow-[0_0_25px_rgba(0,240,255,0.15)]",
+      "modal": "backdrop-blur-3xl bg-slate-950/80 border border-euryx-fuchsia/40 shadow-[0_0_50px_rgba(255,0,255,0.1)]"
+    },
+    "neon_glow": {
+      "shadow_stack_cyan": "shadow-[0_0_15px_rgba(0,240,255,0.4),0_0_30px_rgba(0,240,255,0.2),inset_0_0_10px_rgba(0,240,255,0.1)]",
+      "shadow_stack_fuchsia": "shadow-[0_0_15px_rgba(255,0,255,0.4),0_0_30px_rgba(255,0,255,0.2),inset_0_0_10px_rgba(255,0,255,0.1)]",
+      "card_hover_glow": "hover:shadow-[0_0_25px_rgba(0,240,255,0.6)] hover:border-euryx-cyan transition-all duration-300",
+      "text_glow_cyan": "drop-shadow-[0_0_8px_rgba(0,240,255,0.8)]",
+      "text_glow_fuchsia": "drop-shadow-[0_0_8px_rgba(255,0,255,0.8)]"
+    }
+  },
+  "card_design_language": {
+    "base": "w-48 h-64 rounded-xl border border-white/10 bg-slate-900 relative overflow-hidden transition-all",
+    "shimmer": "after:absolute after:inset-0 after:bg-gradient-to-tr after:from-transparent after:via-white/20 after:to-transparent after:-translate-x-full hover:after:translate-x-full after:transition-transform after:duration-700",
+    "hover": "hover:-translate-y-2 hover:scale-105 z-10 hover:border-euryx-cyan/50 hover:shadow-[0_0_30px_rgba(0,240,255,0.3)]",
+    "drag": "cursor-grab active:cursor-grabbing active:scale-95 active:shadow-[0_0_40px_rgba(255,0,255,0.5)] active:border-euryx-fuchsia",
+    "flip": "transition-transform duration-500 [transform-style:preserve-3d]",
+    "flip_active": "[transform:rotateY(180deg)]"
+  },
+  "animations": {
+    "framer_motion_configs": {
+      "spring_glide": "{ type: 'spring', stiffness: 200, damping: 20 }",
+      "spring_bouncy": "{ type: 'spring', stiffness: 300, damping: 15 }",
+      "layoutId_transition": "{ type: 'spring', bounce: 0.2, duration: 0.6 }",
+      "modal_entry": "{ initial: { opacity: 0, scale: 0.9, y: 20 }, animate: { opacity: 1, scale: 1, y: 0 }, exit: { opacity: 0, scale: 0.9, y: 20 } }"
+    },
+    "micro_interactions": {
+      "haloNav_float": "animate-[float_6s_ease-in-out_infinite]",
+      "queue_pulse": "animate-pulse border-euryx-fuchsia shadow-[0_0_20px_rgba(255,0,255,0.4)]",
+      "prize_card_reveal": "rotateY-180 scale-110 duration-500 transition-transform"
+    }
+  },
+  "layout_grids": {
+    "lobby": {
+      "container": "min-h-screen bg-black flex flex-col items-center justify-center relative p-8 overflow-hidden",
+      "dashboard_grid": "grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl z-10"
+    },
+    "deckbuilder": {
+      "container": "h-screen flex flex-row overflow-hidden bg-black",
+      "split_left": "w-2/3 h-full overflow-y-auto p-8 border-r border-white/10 bg-black",
+      "split_right": "w-1/3 h-full overflow-y-auto p-8 bg-slate-950/80 backdrop-blur-md"
+    },
+    "game_board": {
+      "container": "h-screen w-screen bg-black overflow-hidden flex flex-col relative font-mono",
+      "opponent_half": "h-1/2 w-full rotate-180 flex flex-col p-4 relative",
+      "player_half": "h-1/2 w-full flex flex-col p-4 border-t border-euryx-cyan/20 relative",
+      "zones": {
+        "active_spot": "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
+        "bench": "flex justify-center gap-4 mt-auto mb-8",
+        "prize_cards": "absolute left-8 top-1/2 -translate-y-1/2 flex flex-col gap-2",
+        "deck": "absolute right-8 bottom-8",
+        "discard": "absolute right-40 bottom-8",
+        "hand": "absolute bottom-0 left-1/2 -translate-x-1/2 flex justify-center -space-x-12 translate-y-1/4 hover:translate-y-0 hover:-space-x-4 transition-all duration-300"
+      }
+    }
+  },
+  "image_assets": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1687560466164-1eeddb3b119b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwxfHxkYXJrJTIwbmVvbiUyMGdlb21ldHJpYyUyMGFic3RyYWN0JTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3ODI2MTIzNDF8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Dark neon geometric abstract background for Lobby",
+      "usage": "bg-cover bg-center opacity-30 mix-blend-screen pointer-events-none absolute inset-0"
+    },
+    "ambient_texture": {
+      "url": "https://images.unsplash.com/photo-1557264322-b44d383a2906?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHwxfHxjeWFuJTIwZnVjaHNpYSUyMGRhcmslMjBhYnN0cmFjdCUyMHRleHR1cmV8ZW58MHx8fHwxNzgyNjEyMzQxfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Cyan fuchsia dark abstract texture for Matchmaking/Deckbuilder",
+      "usage": "bg-cover bg-center opacity-20 mix-blend-color-dodge absolute inset-0 pointer-events-none"
+    }
+  },
+  "testing_attributes": {
+    "requirement": "All interactive and key informational elements MUST include a data-testid attribute.",
+    "convention": "kebab-case, role-based",
+    "examples": [
+      "data-testid='lobby-enter-queue-btn'",
+      "data-testid='matchmaking-status-text'",
+      "data-testid='game-active-spot'",
+      "data-testid='deckbuilder-search-input'",
+      "data-testid='halo-nav-vault-link'"
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Use standard React .js files, NOT .tsx. Ensure all components are written using JavaScript and modern React hooks.",
+    "Implement Framer Motion heavily. You MUST use layoutId for cards moving between Deck, Hand, Active Spot, and Discard to ensure they 'fly' smoothly across zones.",
+    "Ensure the opponent's side of the game board is visually rotated 180deg (rotate-180 class) so cards face the opponent. Shared card components will appear upside down relative to the player.",
+    "Do not use native HTML default inputs/selects. Use deeply customized interactive components (e.g., custom Radix or heavily styled divs) to fit the hyper-modern dark neon theme.",
+    "The HaloNav must be fixed, glassmorphic, and float above content. Crucially, conditionally hide it entirely when the user is on the /play/[roomId] game board route for a distraction-free view.",
+    "Use Lucide React for iconography. Apply the neon text glow shadows to critical icons.",
+    "Apply `data-testid` consistently across all buttons, cards, zones, and interactive elements for testing.",
+    "Inject the specific Hex codes and shadow values provided in 'tailwind_config_tokens' into the project's tailwind.config.js."
+  ]
+}
