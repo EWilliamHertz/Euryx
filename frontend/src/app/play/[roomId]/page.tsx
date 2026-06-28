@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { io, Socket } from "socket.io-client";
 import {
@@ -83,8 +83,15 @@ function buildPlayed(c: EuryxCard, variant = "EN"): PlayedCard {
 
 export default function PlayRoomPage() {
   const params = useParams<{ roomId: string }>();
+  const sp = useSearchParams();
   const router = useRouter();
   const roomId = params.roomId;
+  const deckIdParam = sp.get("deck");
+  const isSpectator = sp.get("spectate") === "1";
+  const matchStartRef = useRef<number>(Date.now());
+  const damageDealtRef = useRef<number>(0);
+  const knockoutsRef = useRef<number>(0);
+  const opponentIdRef = useRef<string | null>(null);
   const [user, setUser] = useState<{ id: string; username: string } | null>(null);
   const [opponentName, setOpponentName] = useState<string | null>(null);
   const [mySeat, setMySeat] = useState<Seat>("player1");
@@ -113,7 +120,7 @@ export default function PlayRoomPage() {
   const [chatInput, setChatInput] = useState("");
   const [floatingMsg, setFloatingMsg] = useState<string | null>(null);
 
-  const myTurn = turn === mySeat;
+  const myTurn = turn === mySeat && !isSpectator;
 
   function flash(msg: string, ms = 2200) {
     setFloatingMsg(msg);
@@ -128,19 +135,43 @@ export default function PlayRoomPage() {
   }, []);
 
   useEffect(() => {
-    fetchDemoCards().then((cards) => {
+    // Try to load a specific deck from ?deck=<id> first. Fall back to demo cards.
+    async function loadHand() {
+      if (deckIdParam) {
+        try {
+          const r = await fetch(`/api/decks/${deckIdParam}`, { credentials: "include" });
+          if (r.ok) {
+            const { deck } = await r.json();
+            const playable: EuryxCard[] = (deck.cards || []).map((c: any) => ({
+              id: c.id, apiId: c.apiId, name: c.name, imageUrl: c.imageUrl,
+              setCode: c.setCode, variant: c.variant || "EN",
+            }));
+            if (playable.length > 0) {
+              setHand(playable.slice(0, 7).map((c) => buildPlayed(c, c.variant || "EN")));
+              setDeckCount(Math.max(0, playable.length - 7));
+              return;
+            }
+          }
+        } catch {}
+      }
+      const cards = await fetchDemoCards();
       setHand(cards.slice(0, 7).map((c) => buildPlayed(c, "EN")));
       setDeckCount(50);
-    });
-  }, []);
+    }
+    loadHand();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deckIdParam]);
 
   // ----------------------- Socket -----------------------
   useEffect(() => {
     if (!user) return;
     const s = io({ path: "/socket.io", transports: ["websocket", "polling"] });
     socketRef.current = s;
-    s.emit("room:join", { roomId, userId: user.id, username: user.username });
-    s.on("opponent:joined", ({ username }) => setOpponentName(username));
+    s.emit("room:join", { roomId, userId: user.id, username: user.username, spectate: isSpectator });
+    s.on("opponent:joined", ({ username, userId }: any) => {
+      setOpponentName(username);
+      if (userId) opponentIdRef.current = userId;
+    });
     s.on("game:move", ({ move }) => applyOpponentMove(move));
     s.on("game:chat", (msg) => setChat((c) => [...c, msg].slice(-30)));
     return () => { s.disconnect(); };
@@ -148,6 +179,7 @@ export default function PlayRoomPage() {
   }, [user, roomId]);
 
   function emit(move: any) {
+    if (isSpectator) return; // spectators never emit
     socketRef.current?.emit("game:move", { roomId, move });
   }
 
@@ -239,12 +271,14 @@ export default function PlayRoomPage() {
     if (active.energy < 1) { flash("Needs at least 1 energy."); return; }
     if (!opp.active) { flash("Opponent has no active Pokémon."); return; }
     const dmg = active.attackDamage;
+    damageDealtRef.current += dmg;
     // Apply locally to opponent's active
     setOpp((s) => {
       if (!s.active) return s;
       const newHp = Math.max(0, s.active.hp - dmg);
       const nextA = { ...s.active, hp: newHp };
       if (newHp === 0) {
+        knockoutsRef.current += 1;
         flash(`Knocked out ${s.active.name}! +1 prize`);
         // I take a prize
         setPrize((p) => {
@@ -291,6 +325,30 @@ export default function PlayRoomPage() {
     socketRef.current?.emit("game:chat", { roomId, text: chatInput, username: user.username });
     setChatInput("");
   }
+
+  // Record match results to backend exactly once when game ends.
+  const recordedRef = useRef(false);
+  useEffect(() => {
+    if (!winner || recordedRef.current || !user) return;
+    recordedRef.current = true;
+    const myWon = winner.seat === mySeat;
+    fetch("/api/matches/record", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomId,
+        opponentId: opponentIdRef.current,
+        opponentName: opponentName || "Unknown",
+        result: myWon ? "win" : "loss",
+        reason: winner.reason.toLowerCase().includes("concede") ? "concede" : "prizes",
+        turnCount: turnNumber,
+        durationSec: Math.round((Date.now() - matchStartRef.current) / 1000),
+        damageDealt: damageDealtRef.current,
+        knockouts: knockoutsRef.current,
+      }),
+    }).catch(() => {});
+  }, [winner, user, mySeat, turnNumber, roomId, opponentName]);
 
   return (
     <LayoutGroup>
@@ -490,6 +548,7 @@ export default function PlayRoomPage() {
                 <h1 className="font-heading text-7xl font-black tracking-tighter text-white neon-cyan">
                   {winner.seat === mySeat ? "VICTORY" : "DEFEAT"}
                 </h1>
+                <EloAfterMatch />
                 <div className="text-sm font-mono text-slate-400 mt-3 tracking-wider uppercase">{winner.reason}</div>
                 <button
                   onClick={() => router.push("/dashboard")}
@@ -507,6 +566,32 @@ export default function PlayRoomPage() {
         <ChatPanel chat={chat} input={chatInput} setInput={setChatInput} onSend={sendChat} />
       </div>
     </LayoutGroup>
+  );
+}
+
+// Polls /api/matches once on mount and shows the latest ELO delta — used after winner appears.
+function EloAfterMatch() {
+  const [delta, setDelta] = useState<number | null>(null);
+  const [newElo, setNewElo] = useState<number | null>(null);
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        const r = await fetch("/api/matches?limit=1", { credentials: "include" });
+        const d = await r.json();
+        const m = d?.matches?.[0];
+        if (m) { setDelta(m.eloDelta); setNewElo(m.eloAfter); }
+      } catch {}
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
+  if (delta == null) return null;
+  return (
+    <div className="mt-4 font-mono text-sm" data-testid="game-result-elo">
+      <span className={delta >= 0 ? "text-euryx-cyan" : "text-fuchsia-300"}>
+        {delta >= 0 ? "+" : ""}{delta} ELO
+      </span>
+      <span className="text-slate-500 ml-2">→ {newElo}</span>
+    </div>
   );
 }
 

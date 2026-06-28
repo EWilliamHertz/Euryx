@@ -39,7 +39,9 @@ export default function QueuePage() {
     });
     s.on("match-found", ({ roomId }) => {
       setStatus("matching");
-      setTimeout(() => router.push(`/play/${roomId}`), 700);
+      const deck = new URLSearchParams(window.location.search).get("deck");
+      const target = deck ? `/play/${roomId}?deck=${deck}` : `/play/${roomId}`;
+      setTimeout(() => router.push(target), 700);
     });
     return () => {
       s.disconnect();

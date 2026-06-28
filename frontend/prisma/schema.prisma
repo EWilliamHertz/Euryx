@@ -7,10 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Mirror of a Hatake.Social user — populated on first proxied login.
-// All other Euryx-specific data FKs against this row.
 model EuryxUser {
-  id           String              @id // = hatake_session payload.id (cuid)
+  id           String              @id
   email        String              @unique
   username     String              @unique
   passwordHash String?
@@ -18,15 +16,33 @@ model EuryxUser {
   updatedAt    DateTime            @updatedAt
   decks        EuryxDeck[]
   settings     EuryxUserSettings?
+  stats        EuryxUserStats?
+  matches      EuryxMatchHistory[]
+  regs         EuryxTournamentRegistration[]
 }
 
 model EuryxUserSettings {
   userId          String   @id
   user            EuryxUser @relation(fields: [userId], references: [id], onDelete: Cascade)
   showChatInGame  Boolean   @default(false)
-  preferredSeat   String    @default("auto") // auto | player1 | player2
+  preferredSeat   String    @default("auto")
   reduceMotion    Boolean   @default(false)
+  activeDeckId    String?
   updatedAt       DateTime  @updatedAt
+}
+
+model EuryxUserStats {
+  userId      String   @id
+  user        EuryxUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wins        Int      @default(0)
+  losses      Int      @default(0)
+  elo         Int      @default(1000)
+  peakElo     Int      @default(1000)
+  streak      Int      @default(0)
+  bestStreak  Int      @default(0)
+  totalDmg    Int      @default(0)
+  totalKOs    Int      @default(0)
+  updatedAt   DateTime @updatedAt
 }
 
 model EuryxDeck {
@@ -52,17 +68,71 @@ model EuryxDeckCard {
   createdAt   DateTime @default(now())
 }
 
+model EuryxMatchHistory {
+  id            String   @id @default(cuid())
+  userId        String
+  user          EuryxUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opponentId    String?
+  opponentName  String
+  result        String   // win | loss
+  reason        String?  // prizes | concede
+  turnCount     Int      @default(0)
+  durationSec   Int      @default(0)
+  damageDealt   Int      @default(0)
+  knockouts     Int      @default(0)
+  eloBefore     Int      @default(1000)
+  eloAfter      Int      @default(1000)
+  eloDelta      Int      @default(0)
+  roomId        String
+  endedAt       DateTime @default(now())
+
+  @@index([userId, endedAt])
+}
+
 model EuryxTournament {
   id             String   @id @default(cuid())
   name           String
-  format         String   // standard | expanded | unlimited | gimmick
+  format         String
   status         String   // upcoming | registration | live | finished
   startsAt       DateTime
   registeredCnt  Int      @default(0)
   capacity       Int      @default(64)
   prizePool      String?
-  region         String?  // global | na | eu | jp | latam
+  region         String?
   bannerImageUrl String?
   description    String?
   createdAt      DateTime @default(now())
+  registrations  EuryxTournamentRegistration[]
+  matches        EuryxTournamentMatch[]
+}
+
+model EuryxTournamentRegistration {
+  id            String   @id @default(cuid())
+  tournamentId  String
+  tournament    EuryxTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId        String
+  user          EuryxUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  username      String
+  seed          Int?
+  eliminated    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@unique([tournamentId, userId])
+}
+
+model EuryxTournamentMatch {
+  id            String   @id @default(cuid())
+  tournamentId  String
+  tournament    EuryxTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  round         Int
+  position      Int       // bracket slot
+  player1Id     String?
+  player1Name   String?
+  player2Id     String?
+  player2Name   String?
+  winnerId      String?
+  scheduledAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([tournamentId, round])
 }

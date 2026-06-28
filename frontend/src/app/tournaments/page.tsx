@@ -114,9 +114,10 @@ export default function TournamentsPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.04 }}
               whileHover={{ y: -3 }}
-              className="relative rounded-2xl overflow-hidden glass border border-white/10 hover:border-euryx-cyan/40 transition-all"
+              className="relative rounded-2xl overflow-hidden glass border border-white/10 hover:border-euryx-cyan/40 transition-all block"
               data-testid={`tournament-${t.id}`}
             >
+              <a href={`/tournaments/${t.id}`} className="block">
               <div className="relative h-32 overflow-hidden">
                 {t.bannerImageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -190,6 +191,7 @@ export default function TournamentsPage() {
                   )}
                 </div>
               </div>
+              </a>
             </motion.div>
           );
         })}

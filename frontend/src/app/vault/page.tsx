@@ -89,41 +89,38 @@ export default function VaultPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
                 whileHover={{ y: -4 }}
-                className="glass rounded-2xl overflow-hidden border border-white/10 hover:border-euryx-cyan/40 hover:shadow-[0_0_30px_rgba(0,240,255,0.18)] transition-all"
+                className="glass rounded-2xl overflow-hidden border border-white/10 hover:border-euryx-cyan/40 hover:shadow-[0_0_30px_rgba(0,240,255,0.18)] transition-all group"
                 data-testid={`vault-deck-${d.id}`}
               >
-                <div className="relative h-44 bg-slate-950 overflow-hidden">
-                  {cover ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={cover} alt="" className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition" />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-slate-900 to-black" />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-                  <div className="absolute bottom-3 left-4">
-                    <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-euryx-cyan">DECK</div>
-                    <div className="font-heading text-xl font-black text-white truncate max-w-[260px]">{d.name}</div>
-                  </div>
-                  <div className="absolute top-3 right-3 px-2 py-1 rounded-full bg-black/60 backdrop-blur border border-white/20 text-[10px] font-mono">
-                    {d.cards.length}/60
-                  </div>
-                </div>
-                <div className="p-4 flex items-center justify-between">
-                  <div className="flex -space-x-3">
-                    {d.cards.slice(0, 5).map((c, idx) => (
+                <Link href={`/deck-builder?deck=${d.id}`}>
+                  <div className="relative h-44 bg-slate-950 overflow-hidden">
+                    {cover ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <div
-                        key={c.id}
-                        className="w-7 h-10 rounded-md border border-white/20 bg-slate-900 overflow-hidden"
-                        style={{ zIndex: 10 - idx }}
-                      >
-                        {c.imageUrl && <img src={c.imageUrl} alt="" className="w-full h-full object-cover" />}
-                      </div>
-                    ))}
+                      <img src={cover} alt="" className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-slate-900 to-black" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+                    <div className="absolute bottom-3 left-4">
+                      <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-euryx-cyan">DECK</div>
+                      <div className="font-heading text-xl font-black text-white truncate max-w-[260px]">{d.name}</div>
+                    </div>
+                    <div className="absolute top-3 right-3 px-2 py-1 rounded-full bg-black/60 backdrop-blur border border-white/20 text-[10px] font-mono">
+                      {d.cards.length}/60
+                    </div>
                   </div>
+                </Link>
+                <div className="p-4 flex items-center justify-between gap-2">
                   <div className="text-[10px] font-mono text-slate-400">
                     {new Date(d.updatedAt).toLocaleDateString()}
                   </div>
+                  <a
+                    href={`/queue?deck=${d.id}`}
+                    className="text-[10px] font-mono uppercase tracking-[0.2em] px-3 py-1.5 rounded-full bg-euryx-cyan/15 border border-euryx-cyan/40 text-euryx-cyan hover:bg-euryx-cyan/25 transition"
+                    data-testid={`vault-play-${d.id}`}
+                  >
+                    Play →
+                  </a>
                 </div>
               </motion.div>
             );

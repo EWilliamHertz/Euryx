@@ -67,11 +67,13 @@ app.prepare().then(() => {
       io.emit("queue:size", { size: queue.length });
     });
 
-    socket.on("room:join", ({ roomId, userId, username }) => {
+    socket.on("room:join", ({ roomId, userId, username, spectate }) => {
       socket.join(roomId);
       const room = rooms.get(roomId);
-      socket.to(roomId).emit("opponent:joined", { userId, username });
-      socket.emit("room:joined", { roomId, state: room || null });
+      if (!spectate) {
+        socket.to(roomId).emit("opponent:joined", { userId, username });
+      }
+      socket.emit("room:joined", { roomId, state: room || null, spectator: !!spectate });
     });
 
     socket.on("game:move", ({ roomId, move }) => {
