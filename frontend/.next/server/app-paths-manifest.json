@@ -1,13 +1,1 @@
-{
-  "/signup/page": "app/signup/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/queue/page": "app/queue/page.js",
-  "/play/[roomId]/page": "app/play/[roomId]/page.js",
-  "/vault/page": "app/vault/page.js",
-  "/page": "app/page.js",
-  "/api/pokemon/count/route": "app/api/pokemon/count/route.js",
-  "/api/auth/me/route": "app/api/auth/me/route.js",
-  "/api/tournaments/route": "app/api/tournaments/route.js",
-  "/api/decks/route": "app/api/decks/route.js",
-  "/api/settings/route": "app/api/settings/route.js"
-}
+{}
