@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/auth";
+import { getSessionFromRequest, getHatakeUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const cookie = getSessionFromRequest(req);
+  const user = await getHatakeUserFromCookie(cookie);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const decks = await prisma.euryxDeck.findMany({
-    where: { userId: session.sub },
+    where: { userId: user.id },
     include: { cards: true },
     orderBy: { updatedAt: "desc" },
   });
@@ -14,14 +15,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const cookie = getSessionFromRequest(req);
+  const user = await getHatakeUserFromCookie(cookie);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { name, cards } = await req.json();
   if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
   const deck = await prisma.euryxDeck.create({
     data: {
       name,
-      userId: session.sub,
+      userId: user.id,
       cards: {
         create: (cards || []).map((c: any) => ({
           apiId: String(c.apiId || c.id),

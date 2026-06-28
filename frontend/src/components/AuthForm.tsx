@@ -75,9 +75,14 @@ export default function AuthPage({ mode }: { mode: Mode }) {
         </h1>
         <p className="text-sm font-mono text-slate-400 mt-2">
           {mode === "login"
-            ? "Access the lobby, your vault, and live matchmaking."
-            : "Claim a callsign and start building your competitive vault."}
+            ? "Use your Hatake.Social account. One identity across the network."
+            : "Create a Hatake.Social account — usable on both Euryx and hatake.social."}
         </p>
+        {mode === "signup" && (
+          <p className="text-[11px] font-mono text-amber-300/80 mt-3 leading-relaxed border-l-2 border-amber-400/40 pl-3">
+            Heads-up: signup writes to the live Hatake user database. If you already have a Hatake account, use Sign in instead.
+          </p>
+        )}
 
         <form onSubmit={submit} className="space-y-3 mt-7">
           {mode === "signup" && (

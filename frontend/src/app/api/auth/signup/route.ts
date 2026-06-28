@@ -1,40 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { hashPassword, signToken, setAuthCookie } from "@/lib/auth";
+import { forwardToHatake, extractSessionCookie, setEuryxSessionCookie, getHatakeUserFromCookie } from "@/lib/auth";
 
+// Hatake's register endpoint lives at /api/auth/register; we forward to it.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const email = (body.email || "").toLowerCase().trim();
     const username = (body.username || "").trim();
     const password = body.password || "";
-
     if (!email || !username || !password) {
       return NextResponse.json({ error: "Email, username and password are required" }, { status: 400 });
     }
-    if (password.length < 6) {
-      return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
-    }
 
-    const existing = await prisma.euryxUser.findFirst({
-      where: { OR: [{ email }, { username }] },
-    });
-    if (existing) {
-      return NextResponse.json({ error: "Email or username already in use" }, { status: 409 });
-    }
-
-    const passwordHash = await hashPassword(password);
-    const user = await prisma.euryxUser.create({
-      data: { email, username, passwordHash },
-      select: { id: true, email: true, username: true, createdAt: true },
+    const upstream = await forwardToHatake("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ email, username, password }),
     });
 
-    const token = await signToken({ sub: user.id, email: user.email, username: user.username });
-    setAuthCookie(token);
+    const text = await upstream.text();
+    let upstreamJson: any = null;
+    try { upstreamJson = JSON.parse(text); } catch {}
 
-    return NextResponse.json({ user, token });
+    if (!upstream.ok) {
+      return NextResponse.json(
+        { error: upstreamJson?.error || "Signup failed upstream" },
+        { status: upstream.status === 500 ? 400 : upstream.status }
+      );
+    }
+
+    const sessionCookie = extractSessionCookie(upstream.headers.get("set-cookie"));
+    const res = NextResponse.json({ success: true, user: upstreamJson?.user || null });
+    if (sessionCookie) {
+      setEuryxSessionCookie(res, sessionCookie);
+      getHatakeUserFromCookie(sessionCookie).catch(() => {});
+    }
+    return res;
   } catch (e: any) {
-    console.error("[signup]", e);
     return NextResponse.json({ error: e?.message || "signup_failed" }, { status: 500 });
   }
 }

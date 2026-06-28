@@ -7,14 +7,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Mirror of a Hatake.Social user — populated on first proxied login.
+// All other Euryx-specific data FKs against this row.
 model EuryxUser {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  username     String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id           String              @id // = hatake_session payload.id (cuid)
+  email        String              @unique
+  username     String              @unique
+  passwordHash String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
   decks        EuryxDeck[]
+  settings     EuryxUserSettings?
+}
+
+model EuryxUserSettings {
+  userId          String   @id
+  user            EuryxUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  showChatInGame  Boolean   @default(false)
+  preferredSeat   String    @default("auto") // auto | player1 | player2
+  reduceMotion    Boolean   @default(false)
+  updatedAt       DateTime  @updatedAt
 }
 
 model EuryxDeck {
@@ -38,4 +50,19 @@ model EuryxDeckCard {
   variant     String?
   quantity    Int      @default(1)
   createdAt   DateTime @default(now())
+}
+
+model EuryxTournament {
+  id             String   @id @default(cuid())
+  name           String
+  format         String   // standard | expanded | unlimited | gimmick
+  status         String   // upcoming | registration | live | finished
+  startsAt       DateTime
+  registeredCnt  Int      @default(0)
+  capacity       Int      @default(64)
+  prizePool      String?
+  region         String?  // global | na | eu | jp | latam
+  bannerImageUrl String?
+  description    String?
+  createdAt      DateTime @default(now())
 }

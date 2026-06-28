@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { verifyPassword, signToken, setAuthCookie } from "@/lib/auth";
+import {
+  forwardToHatake,
+  extractSessionCookie,
+  setEuryxSessionCookie,
+  getHatakeUserFromCookie,
+} from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,21 +14,42 @@ export async function POST(req: NextRequest) {
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password required" }, { status: 400 });
     }
-    const user = await prisma.euryxUser.findUnique({ where: { email } });
-    if (!user) return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
 
-    const ok = await verifyPassword(password, user.passwordHash);
-    if (!ok) return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
-
-    const token = await signToken({ sub: user.id, email: user.email, username: user.username });
-    setAuthCookie(token);
-
-    return NextResponse.json({
-      user: { id: user.id, email: user.email, username: user.username, createdAt: user.createdAt },
-      token,
+    const upstream = await forwardToHatake("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
     });
+
+    const upstreamText = await upstream.text();
+    let upstreamJson: any = null;
+    try { upstreamJson = JSON.parse(upstreamText); } catch {}
+
+    if (!upstream.ok) {
+      return NextResponse.json(
+        { error: upstreamJson?.error || "Invalid credentials" },
+        { status: upstream.status === 500 ? 401 : upstream.status }
+      );
+    }
+
+    const sessionCookie = extractSessionCookie(upstream.headers.get("set-cookie"));
+    if (!sessionCookie) {
+      return NextResponse.json(
+        { error: "Hatake did not return a session cookie" },
+        { status: 502 }
+      );
+    }
+
+    const res = NextResponse.json({
+      success: true,
+      user: upstreamJson?.user || null,
+    });
+    setEuryxSessionCookie(res, sessionCookie);
+
+    // Mirror upstream user → EuryxUser (best-effort, non-blocking).
+    getHatakeUserFromCookie(sessionCookie).catch(() => {});
+
+    return res;
   } catch (e: any) {
-    console.error("[login]", e);
     return NextResponse.json({ error: e?.message || "login_failed" }, { status: 500 });
   }
 }
