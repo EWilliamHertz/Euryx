@@ -18,21 +18,20 @@
     "socket.io": "4.7.5",
     "socket.io-client": "4.7.5",
     "@prisma/client": "5.20.0",
+    "prisma": "5.20.0",
     "jose": "5.9.6",
     "bcryptjs": "2.4.3",
     "clsx": "2.1.1",
-    "tailwind-merge": "3.2.0"
-  },
-  "devDependencies": {
+    "tailwind-merge": "3.2.0",
+    "tailwindcss": "3.4.17",
+    "postcss": "8.5.10",
+    "autoprefixer": "10.4.20",
     "typescript": "5.6.3",
     "@types/node": "20.16.11",
     "@types/react": "18.3.11",
     "@types/react-dom": "18.3.0",
-    "@types/bcryptjs": "2.4.6",
-    "tailwindcss": "3.4.17",
-    "postcss": "8.5.10",
-    "autoprefixer": "10.4.20",
-    "prisma": "5.20.0"
+    "@types/bcryptjs": "2.4.6"
   },
+  "devDependencies": {},
   "packageManager": "yarn@1.22.22"
 }
