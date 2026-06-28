@@ -1,0 +1,32 @@
+{
+  "summary": "Full e2e test of Euryx (Next.js 14 + Socket.io + Prisma/Neon) via external preview URL. 12/12 backend pytest pass. Frontend UI/integration verified across landing redirect, dashboard, login (valid + invalid creds), signup, logout, deck-builder w/ pre-filled charizard search + variant modal (all 4 variants EN/JP/CN/RH + close btn) + deck save persistence, queue join/leave (via Socket.io), and game board (/play/test-room-123) with all 25 zone testids (player + opponent halves, prize/active/bench/deck/discard/hand), hand card -> place modal -> active-spot layoutId animation, HaloNav hidden on /play/*, concede returns to /dashboard.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Queue join race condition", "issue": "If user clicks queue-join-btn before socket.io has finished connecting (within ~1s of page load), the emit is dropped and status never transitions to 'queued'. After socket connects (~1-2s) and user clicks again it works fine. socket.io-client does not appear to be buffering the early emit (or joinQueue returns early when socketRef.current is briefly null). Minor UX issue — consider disabling the button until socket 'connect' event fires, or surfacing a 'connecting…' state.", "affected_selectors": ["[data-testid=\"queue-join-btn\"]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_euryx_api.py", "/app/test_reports/pytest/iteration_1.xml"],
+  "action_items": [
+    "(Minor/optional) Harden queue-join-btn: disable until socket.io 'connect' event has fired, or have joinQueue() retry/buffer when socketRef.current.connected === false. Currently functional after a ~1-2s warm-up wait."
+  ],
+  "critical_code_review_comments": [
+    "server.js pairPlayers logs to console.log — fine for dev. In-memory queue/rooms state will be lost on Next.js custom server restart; acceptable for MVP.",
+    "Pokemon search proxy gracefully falls back to a 24-card offline dataset when Hatake upstream is 5xx; response correctly tagged source='fallback:hatake-500' — verified working as documented (not a bug).",
+    "Backend FastAPI reverse-proxy strips content-encoding and content-length hop-by-hop headers correctly; httpOnly euryx_token cookie successfully round-trips through the proxy.",
+    "All required data-testids documented in the spec are present and accurate (verified for landing, dashboard, auth, deck-builder, variant-modal, queue, /play/[roomId])."
+  ],
+  "updated_files": ["/app/backend/tests/test_euryx_api.py"],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% of critical flows, 1 minor race-condition note on queue"},
+  "test_credentials": "Seeded: trainer@euryx.gg / battle123 (RedShard). UI signup also tested creating fresh uitest_<random>@euryx.gg accounts which redirect to /dashboard.",
+  "seed_data_creation": "Created several TEST_ prefixed users + 1 TEST_deck_<random> deck via pytest, plus 1 UI_TEST_DECK via Playwright, plus 1 uitest_<random> user via signup UI. All in Neon Postgres EuryxUser/EuryxDeck tables.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite lives at /app/backend/tests/test_euryx_api.py and runs against external URL via REACT_APP_BACKEND_URL. All endpoints (health, pokemon/search, auth signup/login/me/logout, decks GET/POST) covered. Architecture: FastAPI on :8001 reverse-proxies /api/* to Next.js custom server on :3000; pages and /socket.io go to Next.js directly via ingress. Pokemon search is intentionally serving 'fallback:hatake-500' (Hatake upstream is 500-ing) — DO NOT flag as bug.",
+  "rca of the issue": "Single minor finding: queue-join click within ~1s of /queue page load can silently drop the queue:join emit because socket.io client hasn't completed handshake yet AND joinQueue() emits without checking socket.connected. Mitigation: wait 2-3s after navigation before clicking join, OR (recommended fix) gate the button until 'connect' event fires by tracking an isConnected state in /app/frontend/src/app/queue/page.tsx."
+}

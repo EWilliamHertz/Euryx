@@ -1,89 +1,92 @@
-from fastapi import FastAPI, APIRouter
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+"""
+Euryx backend = thin reverse proxy.
+
+The kubernetes ingress routes external `/api/*` traffic to this service on
+port 8001. The Euryx app actually lives in Next.js (port 3000) and defines
+its API routes under `src/app/api/...`. We forward `/api/*` requests to the
+Next.js custom server so the user's original Next.js API route structure
+keeps working through the external preview URL.
+"""
+from __future__ import annotations
+
 import os
 import logging
-from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
-from datetime import datetime, timezone
+from typing import Any
 
+import httpx
+from fastapi import FastAPI, Request, Response
+from starlette.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv()
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+NEXT_TARGET = os.environ.get("EURYX_NEXT_URL", "http://127.0.0.1:3000")
 
-# Create the main app without a prefix
-app = FastAPI()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s — %(message)s")
+log = logging.getLogger("euryx.proxy")
 
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
-
-
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# Include the router in the main app
-app.include_router(api_router)
+app = FastAPI(title="Euryx Proxy")
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Reusable async client
+_client: httpx.AsyncClient | None = None
+
+@app.on_event("startup")
+async def _startup() -> None:
+    global _client
+    _client = httpx.AsyncClient(base_url=NEXT_TARGET, timeout=30.0, follow_redirects=False)
+    log.info("Euryx proxy -> %s", NEXT_TARGET)
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+async def _shutdown() -> None:
+    global _client
+    if _client is not None:
+        await _client.aclose()
+        _client = None
+
+
+HOP_BY_HOP = {
+    "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+    "te", "trailers", "transfer-encoding", "upgrade", "content-encoding",
+    "content-length",
+}
+
+async def _proxy(request: Request, path: str) -> Response:
+    assert _client is not None
+    url = f"/api/{path}"
+    body = await request.body()
+    headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() not in {"host", "content-length"}
+    }
+    try:
+        upstream = await _client.request(
+            request.method,
+            url,
+            params=request.query_params,
+            content=body if body else None,
+            headers=headers,
+        )
+    except httpx.RequestError as e:
+        log.error("Upstream error for %s %s: %s", request.method, url, e)
+        return Response(content=b'{"error":"upstream_unreachable"}', status_code=502, media_type="application/json")
+
+    resp_headers = {k: v for k, v in upstream.headers.items() if k.lower() not in HOP_BY_HOP}
+    return Response(content=upstream.content, status_code=upstream.status_code, headers=resp_headers, media_type=upstream.headers.get("content-type"))
+
+
+@app.get("/api/__proxy_health")
+async def proxy_health() -> dict[str, Any]:
+    return {"ok": True, "target": NEXT_TARGET}
+
+
+@app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+async def catch_all(request: Request, path: str) -> Response:
+    return await _proxy(request, path)

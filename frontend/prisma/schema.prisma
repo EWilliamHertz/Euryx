@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model EuryxUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  decks        EuryxDeck[]
+}
+
+model EuryxDeck {
+  id        String           @id @default(cuid())
+  name      String
+  userId    String
+  user      EuryxUser        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards     EuryxDeckCard[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model EuryxDeckCard {
+  id          String   @id @default(cuid())
+  deckId      String
+  deck        EuryxDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  apiId       String
+  name        String
+  imageUrl    String?
+  setCode     String?
+  variant     String?
+  quantity    Int      @default(1)
+  createdAt   DateTime @default(now())
+}
