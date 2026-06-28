@@ -1,16 +1,12 @@
 // Server-side bridge to Hatake.Social authentication.
-// Euryx is a sister-app; users sign in with ONE Hatake account everywhere.
 //
-// Flow:
-//   1. Browser POSTs /api/auth/login on Euryx with {email,password}.
-//   2. We forward to https://www.hatake.social/api/auth/login (or beta mirror).
-//   3. Upstream sets-cookie `hatake_session=<jwt>` — we re-emit it on the
-//      Euryx response so the browser stores it on the Euryx domain.
-//   4. /api/auth/me forwards the cookie back to upstream and returns its user.
-//   5. We upsert an EuryxUser mirror row keyed by the same id so Euryx's
-//      decks/settings FKs continue to work.
+// Optimisation in iter-2.1: since Euryx shares `JWT_SECRET` with hatakesocialbeta
+// (both apps signed by the same HS256 key), we can decode the cookie LOCALLY
+// using `jose` instead of round-tripping to upstream `/api/auth/me` on every
+// page load. The upstream call is kept as a fallback only.
 
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 
 export const HATAKE_AUTH_BASE =
@@ -20,7 +16,9 @@ export const HATAKE_AUTH_BASE =
 
 export const HATAKE_COOKIE = "hatake_session";
 
-/** Forward a Hatake API request server-side; relays the session cookie. */
+const JWT_SECRET = process.env.JWT_SECRET || "SUPER_SECRET_HATAKE_NETWORK_KEY_99";
+const jwtKey = new TextEncoder().encode(JWT_SECRET);
+
 export async function forwardToHatake(
   path: string,
   init: RequestInit & { cookieHeader?: string } = {}
@@ -37,14 +35,13 @@ export async function forwardToHatake(
     headers,
     body: init.body,
     redirect: "follow",
+    signal: AbortSignal.timeout(8000),
   });
   return res;
 }
 
-/** Extract the `hatake_session` cookie from a Set-Cookie header (multi-value safe). */
 export function extractSessionCookie(setCookieHeader: string | null): string | null {
   if (!setCookieHeader) return null;
-  // Multiple cookies may arrive separated by commas — split on `, <name>=`
   const cookies = setCookieHeader.split(/,(?=\s*[a-zA-Z0-9_]+=)/g);
   for (const raw of cookies) {
     const m = raw.match(/(?:^|;\s*)hatake_session=([^;]+)/);
@@ -53,18 +50,16 @@ export function extractSessionCookie(setCookieHeader: string | null): string | n
   return null;
 }
 
-/** Re-emit `hatake_session` on the Euryx domain. */
 export function setEuryxSessionCookie(res: NextResponse, value: string) {
   res.cookies.set(HATAKE_COOKIE, value, {
     httpOnly: true,
     secure: true,
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60 * 24 * 7,
   });
 }
 
-/** Clear our local mirror cookie. */
 export function clearEuryxSessionCookie(res: NextResponse) {
   res.cookies.set(HATAKE_COOKIE, "", { maxAge: 0, path: "/" });
 }
@@ -73,31 +68,56 @@ export function getSessionFromRequest(req: NextRequest): string | null {
   return req.cookies.get(HATAKE_COOKIE)?.value || null;
 }
 
-/** Read current user from upstream `/api/auth/me`, mirror to local EuryxUser. */
-export async function getHatakeUserFromCookie(cookie: string | null) {
+type HatakeUser = { id: string; email: string; username: string };
+
+/** Decode the Hatake JWT locally — same secret, same algorithm. */
+async function decodeLocal(token: string): Promise<HatakeUser | null> {
+  try {
+    const { payload } = await jwtVerify(token, jwtKey, { algorithms: ["HS256"] });
+    const id = payload.id as string | undefined;
+    const email = payload.email as string | undefined;
+    const username = payload.username as string | undefined;
+    if (!id || !email || !username) return null;
+    return { id, email, username };
+  } catch {
+    return null;
+  }
+}
+
+/** Best-effort, async mirror upsert — never blocks the caller. */
+function mirrorAsync(user: HatakeUser) {
+  prisma.euryxUser
+    .upsert({
+      where: { id: user.id },
+      update: { email: user.email, username: user.username },
+      create: { id: user.id, email: user.email, username: user.username, passwordHash: null },
+    })
+    .catch((e) => console.warn("[auth-mirror]", (e as Error).message));
+}
+
+/** Resolve current user. Local JWT decode first; upstream fallback. */
+export async function getHatakeUserFromCookie(cookie: string | null): Promise<HatakeUser | null> {
   if (!cookie) return null;
+
+  // Fast path — local decode.
+  const local = await decodeLocal(cookie);
+  if (local) {
+    mirrorAsync(local);
+    return local;
+  }
+
+  // Fallback — ask upstream. Useful if the upstream rotates its JWT secret.
   try {
     const r = await forwardToHatake("/api/auth/me", {
       cookieHeader: `${HATAKE_COOKIE}=${cookie}`,
     });
     if (!r.ok) return null;
     const data = await r.json();
-    const user = data?.user;
-    if (!user || !user.id || !user.email || !user.username) return null;
-
-    // Upsert mirror — silently best-effort.
-    try {
-      await prisma.euryxUser.upsert({
-        where: { id: user.id },
-        update: { email: user.email, username: user.username },
-        create: { id: user.id, email: user.email, username: user.username, passwordHash: null },
-      });
-    } catch (e) {
-      // Possible username/email uniqueness collision with a legacy local-only row.
-      // Ignore — downstream code still has the user object from upstream.
-      console.warn("[auth-bridge] upsert mirror failed:", (e as Error).message);
-    }
-    return user as { id: string; email: string; username: string };
+    const u = data?.user;
+    if (!u?.id || !u?.email || !u?.username) return null;
+    const norm: HatakeUser = { id: u.id, email: u.email, username: u.username };
+    mirrorAsync(norm);
+    return norm;
   } catch {
     return null;
   }
