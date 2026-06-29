@@ -1,67 +1,22 @@
 "use client";
 
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Sparkles, Swords, Newspaper, Wand2, Layers,
-  Trophy, MessageCircle, User, Settings as SettingsIcon, Store,
+  User, Sparkles, Newspaper, Layers, Wand2, Swords, Trophy, Store, Settings as SettingsIcon
 } from "lucide-react";
 
 type SessionUser = { id: string; username: string; email: string } | null;
 
-// Left + right link sets — keeping the same architecture as
-// hatake.social's HaloNav (4 left + center profile + 4 right).
-const LEFT = [
-  { href: "/dashboard", icon: Newspaper, label: "Lobby", testId: "halo-nav-lobby" },
-  { href: "/deck-builder", icon: Layers, label: "Deck", testId: "halo-nav-deck" },
-  { href: "/vault", icon: Wand2, label: "Vault", testId: "halo-nav-vault" },
-  { href: "/queue", icon: Swords, label: "Arena", testId: "halo-nav-arena" },
-];
-
-const RIGHT = [
-  { href: "/tournaments", icon: Trophy, label: "Cups", testId: "halo-nav-tournaments" },
-  { href: "https://hatake-social-beta.vercel.app/market", external: true, icon: Store, label: "Market", testId: "halo-nav-market" },
-  { href: "https://hatake-social-beta.vercel.app/apps", external: true, icon: Wand2, label: "Hatake", testId: "halo-nav-hatake" },
-  { href: "/settings", icon: SettingsIcon, label: "Config", testId: "halo-nav-settings" },
-];
-
-function NavLink({
-  href, icon: Icon, label, active, external, testId,
-}: {
-  href: string; icon: any; label: string; active: boolean;
-  external?: boolean; testId?: string;
-}) {
-  const cls = `relative flex flex-col items-center gap-1 transition-all duration-300 ${
-    active
-      ? "text-euryx-cyan drop-shadow-[0_0_10px_rgba(0,240,255,0.9)] scale-110"
-      : "text-slate-400 hover:text-white hover:scale-105"
-  }`;
-  const inner = (
-    <>
-      {active && (
-        <motion.span
-          layoutId="halo-active-ring"
-          className="absolute -inset-x-2 -top-1 -bottom-1 rounded-full bg-euryx-cyan/10 border border-euryx-cyan/40"
-          transition={{ type: "spring", stiffness: 380, damping: 30 }}
-        />
-      )}
-      <Icon size={20} className="relative z-10" />
-      <span className="text-[10px] font-heading font-bold uppercase tracking-[0.18em] relative z-10">{label}</span>
-    </>
-  );
-  if (external) {
-    return (
-      <a href={href} target="_blank" rel="noreferrer" className={cls} data-testid={testId}>
-        {inner}
-      </a>
-    );
-  }
-  return (
-    <Link href={href} className={cls} data-testid={testId}>{inner}</Link>
-  );
-}
+type NavItem = {
+  href: string;
+  label: string;
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  external?: boolean;
+  testId?: string;
+};
 
 export function HaloNav() {
   const pathname = usePathname() || "/";
@@ -79,112 +34,245 @@ export function HaloNav() {
   // Distraction-free game canvas — HaloNav hides.
   if (pathname.startsWith("/play/")) return null;
 
+  // Euryx specific routes mapped into the new layout
+  const leftIcons: NavItem[] = [
+    { href: "/dashboard", label: "Lobby", Icon: Newspaper, testId: "halo-nav-lobby" },
+    { href: "/deck-builder", label: "Deck", Icon: Layers, testId: "halo-nav-deck" },
+    { href: "/vault", label: "Vault", Icon: Wand2, testId: "halo-nav-vault" },
+    { href: "/queue", label: "Arena", Icon: Swords, testId: "halo-nav-arena" },
+  ];
+  
+  const rightIcons: NavItem[] = [
+    { href: "/tournaments", label: "Cups", Icon: Trophy, testId: "halo-nav-tournaments" },
+    { href: "https://hatake-social-beta.vercel.app/market", label: "Market", Icon: Store, external: true, testId: "halo-nav-market" },
+    { href: "https://hatake-social-beta.vercel.app/apps", label: "Hatake", Icon: Wand2, external: true, testId: "halo-nav-hatake" },
+    { href: "/settings", label: "Config", Icon: SettingsIcon, testId: "halo-nav-settings" },
+  ];
+
+  // ─── Arc geometry ─────────────────────────────────────────────────────────
+  // Icons follow the inner dashed line path of the SVG arc:
+  //   M 60 190 A 440 148 0 0 1 940 190
+  const leftAngles = [-78, -55, -34, -14];
+  const rightAngles = [14, 34, 55, 78];
+  const rx = 44;       // % of container width
+  const ry = 148;      // px
+  const cx = 50;       // % (horizontal center)
+  const cy = 190;      // px (bottom anchor of the arc)
+
+  const computePos = (deg: number) => {
+    const rad = (deg * Math.PI) / 180;
+    return {
+      x: cx + rx * Math.sin(rad),
+      y: cy - ry * Math.cos(rad),
+    };
+  };
+
+  const positions = [
+    ...leftAngles.map(computePos),
+    ...rightAngles.map(computePos),
+  ];
+  const allIcons = [...leftIcons, ...rightIcons];
+
+  const isActive = (item: NavItem) =>
+    !item.external && (pathname === item.href || pathname.startsWith(item.href + "/"));
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none flex justify-center" data-testid="halo-nav">
-      <div className="relative w-full max-w-5xl mb-4 pointer-events-auto flex items-end justify-center px-4">
-        {/* Ambient glow */}
-        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 w-[70%] h-[60px] bg-euryx-cyan/25 rounded-full blur-3xl -z-10" />
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-[35%] h-[80px] bg-euryx-fuchsia/20 rounded-full blur-3xl -z-10" />
+    <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none flex justify-center select-none" data-testid="halo-nav">
+      <motion.div
+        initial={{ y: 80, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 200, damping: 22 }}
+        className="relative w-full max-w-5xl h-48 mb-2 pointer-events-auto"
+      >
+        {/* ─── Ambient glow ─────────────────────────────────────────────── */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 flex items-end justify-center">
+          <div className="w-[88%] h-[150px] rounded-t-[100%] bg-cyan-500/15 blur-3xl" />
+        </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 flex items-end justify-center">
+          <div className="w-[60%] h-[130px] rounded-t-[100%] bg-fuchsia-500/20 blur-3xl" />
+        </div>
 
-        {/* The Halo */}
-        <motion.div
-          initial={{ y: 80, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 200, damping: 22 }}
-          className="relative w-full md:w-[1040px] h-[92px] flex justify-between items-end pb-3 px-5 md:px-14 overflow-visible"
-          style={{
-            borderRadius: "50% 50% 22px 22px / 70% 70% 22px 22px",
-            background:
-              "linear-gradient(180deg, rgba(2,6,23,0.96) 0%, rgba(2,6,23,0.78) 100%)",
-            backdropFilter: "blur(28px) saturate(160%)",
-            WebkitBackdropFilter: "blur(28px) saturate(160%)",
-            border: "1px solid rgba(0, 240, 255, 0.25)",
-            borderBottom: "1px solid rgba(255, 0, 255, 0.18)",
-            boxShadow:
-              "inset 0 2px 30px rgba(0, 240, 255, 0.18), inset 0 -10px 30px rgba(255, 0, 255, 0.07), 0 14px 50px rgba(0, 0, 0, 0.65)",
-          }}
+        {/* ─── The half-halo arc (SVG) ──────────────────────────────────── */}
+        <svg
+          className="absolute inset-x-0 bottom-0 w-full h-48 overflow-visible"
+          viewBox="0 0 1000 190"
+          preserveAspectRatio="none"
+          aria-hidden="true"
         >
-          {/* Top curved highlight */}
-          <div
-            className="absolute top-0 left-1/2 -translate-x-1/2 w-[90%] h-[2px] pointer-events-none"
-            style={{
-              background: "linear-gradient(90deg, transparent 0%, rgba(0,240,255,0.55) 30%, rgba(255,255,255,0.85) 50%, rgba(255,0,255,0.55) 70%, transparent 100%)",
-              filter: "blur(0.5px)",
-            }}
+          <defs>
+            <linearGradient id="haloStroke" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#06b6d4" stopOpacity="0" />
+              <stop offset="22%" stopColor="#06b6d4" stopOpacity="0.95" />
+              <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
+              <stop offset="78%" stopColor="#d946ef" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="#d946ef" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id="haloSoft" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#06b6d4" stopOpacity="0" />
+              <stop offset="50%" stopColor="#06b6d4" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#d946ef" stopOpacity="0" />
+            </linearGradient>
+            <filter id="haloGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="6" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          {/* Wide soft glow underlay */}
+          <path
+            d="M 40 190 A 460 160 0 0 1 960 190"
+            fill="none"
+            stroke="url(#haloSoft)"
+            strokeWidth="16"
+            filter="url(#haloGlow)"
           />
+          {/* Main halo stroke */}
+          <path
+            d="M 40 190 A 460 160 0 0 1 960 190"
+            fill="none"
+            stroke="url(#haloStroke)"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            filter="url(#haloGlow)"
+          />
+        </svg>
 
-          {/* Left links */}
-          <div className="flex gap-6 md:gap-10 items-center pb-1">
-            {LEFT.map((l) => (
-              <NavLink
-                key={l.href}
-                href={l.href}
-                icon={l.icon}
-                label={l.label}
-                testId={l.testId}
-                active={pathname === l.href || pathname.startsWith(l.href + "/")}
-              />
-            ))}
-          </div>
+        {/* ─── Icons positioned along the arc ───────────────────────────── */}
+        {allIcons.map((item, i) => {
+          const pos = positions[i];
+          const active = isActive(item);
+          const className = `group flex flex-col items-center gap-1 transition-all duration-300 ${
+            active
+              ? "text-cyan-300 scale-110 drop-shadow-[0_0_10px_rgba(6,182,212,0.9)]"
+              : "text-slate-400 hover:text-white hover:scale-110"
+          }`;
+          
+          const inner = (
+            <>
+              <div
+                className={`w-11 h-11 rounded-full flex items-center justify-center border transition-all ${
+                  active
+                    ? "bg-cyan-500/20 border-cyan-400/70 shadow-[0_0_18px_rgba(6,182,212,0.7)]"
+                    : "bg-slate-950/85 border-white/10 group-hover:border-cyan-400/40 group-hover:shadow-[0_0_14px_rgba(6,182,212,0.4)]"
+                }`}
+              >
+                <item.Icon size={18} />
+              </div>
+              <span className="text-[9px] font-heading font-bold uppercase tracking-widest whitespace-nowrap">
+                {item.label}
+              </span>
+            </>
+          );
+          
+          const style: React.CSSProperties = {
+            position: "absolute",
+            left: `${pos.x}%`,
+            top: `${pos.y}px`,
+            transform: "translate(-50%, -50%)",
+          };
+          
+          if (item.external) {
+            return (
+              <a
+                key={item.href + i}
+                href={item.href}
+                target="_blank"
+                rel="noreferrer"
+                style={style}
+                className={className}
+                data-testid={item.testId}
+              >
+                {inner}
+              </a>
+            );
+          }
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              style={style}
+              className={className}
+              data-testid={item.testId}
+            >
+              {inner}
+            </Link>
+          );
+        })}
 
-          {/* Center floating profile bubble */}
-          <div className="absolute left-1/2 -translate-x-1/2 -top-10">
-            {user ? (
-              <Link href="/profile" className="relative group block" data-testid="halo-nav-profile">
-                <div className="absolute inset-0 bg-gradient-to-tr from-euryx-cyan via-white to-euryx-fuchsia opacity-50 rounded-full blur-2xl group-hover:opacity-90 transition-opacity duration-500" />
-                <motion.div
-                  whileHover={{ rotate: 8, scale: 1.08 }}
-                  transition={{ type: "spring", stiffness: 320, damping: 20 }}
-                  className="relative flex flex-col items-center justify-center w-[96px] h-[96px] rounded-full border-[3px] border-slate-950 text-white"
-                  style={{
-                    background:
-                      "conic-gradient(from 220deg at 50% 50%, #00f0ff 0deg, #ffffff 80deg, #ff00ff 160deg, #00f0ff 280deg, #ff00ff 340deg, #00f0ff 360deg)",
-                    boxShadow:
-                      "0 0 30px rgba(0,240,255,0.55), 0 0 60px rgba(255,0,255,0.35), inset 0 0 18px rgba(0,0,0,0.4)",
-                  }}
-                >
-                  <div className="absolute inset-[3px] rounded-full bg-slate-950 flex flex-col items-center justify-center">
-                    <User size={26} className="mb-0.5 text-white" />
-                    <span className="text-[9px] font-heading font-black uppercase tracking-[0.22em] text-white max-w-[80px] truncate px-1">
-                      {user.username}
-                    </span>
-                  </div>
-                </motion.div>
-              </Link>
-            ) : (
-              <Link href="/login" className="relative group block" data-testid="halo-nav-login">
-                <div className="absolute inset-0 bg-gradient-to-tr from-euryx-cyan to-euryx-fuchsia opacity-50 rounded-full blur-2xl group-hover:opacity-90 transition" />
-                <motion.div
-                  whileHover={{ scale: 1.08 }}
-                  className="relative flex flex-col items-center justify-center w-[96px] h-[96px] rounded-full border-[3px] border-slate-950 text-white"
-                  style={{
-                    background: "linear-gradient(135deg, #00f0ff, #ff00ff)",
-                    boxShadow: "0 0 30px rgba(0,240,255,0.55), 0 0 60px rgba(255,0,255,0.35)",
-                  }}
-                >
-                  <Sparkles size={28} className="mb-1" />
-                  <span className="text-[10px] font-heading font-black uppercase tracking-[0.22em]">Sign In</span>
-                </motion.div>
-              </Link>
-            )}
-          </div>
-
-          {/* Right links */}
-          <div className="flex gap-6 md:gap-10 items-center pb-1">
-            {RIGHT.map((l) => (
-              <NavLink
-                key={l.href}
-                href={l.href}
-                icon={l.icon}
-                label={l.label}
-                testId={l.testId}
-                external={l.external}
-                active={pathname === l.href || pathname.startsWith(l.href + "/")}
-              />
-            ))}
-          </div>
-        </motion.div>
-      </div>
+        {/* ─── Center Login / Profile bubble at apex of halo ────────────── */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2"
+          style={{ top: "-32px" }}
+        >
+          {user ? (
+            <Link href="/profile" data-testid="halo-nav-profile" className="relative group block">
+              <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500 via-white to-fuchsia-500 opacity-50 rounded-full blur-2xl group-hover:opacity-90 transition-opacity duration-500" />
+              <motion.div
+                whileHover={{ rotate: 8, scale: 1.08 }}
+                transition={{ type: "spring", stiffness: 320, damping: 20 }}
+                className="relative flex items-center justify-center w-[96px] h-[96px] rounded-full border-[3px] border-slate-950 text-white"
+                style={{
+                  background:
+                    "conic-gradient(from 220deg at 50% 50%, #06b6d4 0deg, #ffffff 80deg, #d946ef 160deg, #06b6d4 280deg, #d946ef 340deg, #06b6d4 360deg)",
+                  boxShadow:
+                    "0 0 30px rgba(6,182,212,0.55), 0 0 60px rgba(217,70,239,0.35), inset 0 0 18px rgba(0,0,0,0.4)",
+                }}
+              >
+                <div className="absolute inset-[3px] rounded-full bg-slate-950 flex flex-col items-center justify-center px-2">
+                  <User size={22} className="mb-1 text-white" />
+                  {(() => {
+                    const name = user.username;
+                    const trimmed = name.trim();
+                    let top = trimmed;
+                    let bottom = "";
+                    const spaceIdx = trimmed.indexOf(" ");
+                    
+                    if (spaceIdx > 0) {
+                      top = trimmed.slice(0, spaceIdx);
+                      bottom = trimmed.slice(spaceIdx + 1);
+                    } else if (trimmed.length > 5) {
+                      const mid = Math.ceil(trimmed.length / 2);
+                      top = trimmed.slice(0, mid);
+                      bottom = trimmed.slice(mid);
+                    }
+                    
+                    return (
+                      <div className="flex flex-col items-center leading-[1.05] text-white max-w-[78px]">
+                        <span className="text-[10px] font-heading font-black uppercase tracking-[0.15em] truncate w-full text-center">
+                          {top}
+                        </span>
+                        {bottom && (
+                          <span className="text-[10px] font-heading font-black uppercase tracking-[0.15em] truncate w-full text-center">
+                            {bottom}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </motion.div>
+            </Link>
+          ) : (
+            <Link href="/login" data-testid="halo-nav-login" className="relative group block">
+              <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500 to-fuchsia-500 opacity-50 rounded-full blur-2xl group-hover:opacity-90 transition" />
+              <motion.div
+                whileHover={{ scale: 1.08 }}
+                className="relative flex flex-col items-center justify-center w-[96px] h-[96px] rounded-full border-[3px] border-slate-950 text-white"
+                style={{
+                  background: "linear-gradient(135deg, #06b6d4, #d946ef)",
+                  boxShadow: "0 0 30px rgba(6,182,212,0.55), 0 0 60px rgba(217,70,239,0.35)",
+                }}
+              >
+                <Sparkles size={28} className="mb-1" />
+                <span className="text-[10px] font-heading font-black uppercase tracking-[0.22em]">Sign In</span>
+              </motion.div>
+            </Link>
+          )}
+        </div>
+      </motion.div>
     </div>
   );
 }
