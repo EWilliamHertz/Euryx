@@ -13,7 +13,7 @@ type SessionUser = { id: string; username: string; email: string } | null;
 type NavItem = {
   href: string;
   label: string;
-  Icon: React.ComponentType<{ size?: number; className?: string }>;
+Icon: React.ElementType;
   external?: boolean;
   testId?: string;
 };
