@@ -95,30 +95,15 @@ function mirrorAsync(user: HatakeUser) {
     .catch((e) => console.warn("[auth-mirror]", (e as Error).message));
 }
 
-/** Resolve current user. Local JWT decode first; upstream fallback. */
+/** Resolve current user strictly using local JWT decode of the hatake_session cookie. */
 export async function getHatakeUserFromCookie(cookie: string | null): Promise<HatakeUser | null> {
   if (!cookie) return null;
 
-  // Fast path — local decode.
+  // Strict local decode using JWT_SECRET.
   const local = await decodeLocal(cookie);
   if (local) {
     mirrorAsync(local);
     return local;
   }
-
-  // Fallback — ask upstream. Useful if the upstream rotates its JWT secret.
-  try {
-    const r = await forwardToHatake("/api/auth/me", {
-      cookieHeader: `${HATAKE_COOKIE}=${cookie}`,
-    });
-    if (!r.ok) return null;
-    const data = await r.json();
-    const u = data?.user;
-    if (!u?.id || !u?.email || !u?.username) return null;
-    const norm: HatakeUser = { id: u.id, email: u.email, username: u.username };
-    mirrorAsync(norm);
-    return norm;
-  } catch {
-    return null;
-  }
+  return null;
 }
