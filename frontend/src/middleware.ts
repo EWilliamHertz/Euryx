@@ -45,7 +45,12 @@ export async function middleware(request: NextRequest) {
   ];
 
   if (legacyMenus.includes(pathname)) {
-    return NextResponse.redirect(new URL("/queue", request.url));
+    const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+    // If the request comes through Hatake hub (Vercel or localhost proxy)
+    const isProxied = forwardedHost.includes("hatake.social") || forwardedHost.includes("localhost");
+    const targetPath = isProxied ? "/euryx/queue" : "/queue";
+    
+    return NextResponse.redirect(new URL(targetPath, request.url));
   }
 
   return NextResponse.next();
