@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
-const JWT_SECRET = process.env.JWT_SECRET || "SUPER_SECRET_HATAKE_NETWORK_KEY_99";
+if (!process.env.JWT_SECRET) {
+  throw new Error("FATAL: JWT_SECRET environment variable is not set.");
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 const jwtKey = new TextEncoder().encode(JWT_SECRET);
 const HATAKE_COOKIE = "hatake_session";
 const HATAKE_LOGIN_URL = "https://hatake.social/login";
