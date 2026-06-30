@@ -34,7 +34,6 @@ export async function middleware(request: NextRequest) {
   // If authenticated, bypass legacy menus and mount core Game Board (queue)
   const legacyMenus = [
     "/",
-    "/dashboard",
     "/login",
     "/signup",
     "/profile",
@@ -48,7 +47,7 @@ export async function middleware(request: NextRequest) {
     const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
     // If the request comes through Hatake hub (Vercel or localhost proxy)
     const isProxied = forwardedHost.includes("hatake.social") || forwardedHost.includes("localhost");
-    const targetPath = isProxied ? "/euryx/queue" : "/queue";
+    const targetPath = isProxied ? "/euryx/dashboard" : "/dashboard";
     
     return NextResponse.redirect(new URL(targetPath, request.url));
   }
